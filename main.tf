@@ -14,6 +14,20 @@ resource "aws_vpc" "client1" {
   }
 }
 
+# VPC S3 Gateway Endpoint - Client 1
+resource "aws_vpc_endpoint" "s3_client1" {
+  vpc_id            = aws_vpc.client1.id
+  service_name      = "com.amazonaws.${var.region}.s3"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = [
+    aws_vpc.client1.main_route_table_id
+  ]
+  tags = {
+    Name = "s3-endpoint-client1"
+  }
+}
+
 resource "aws_subnet" "client1_subnet" {
   vpc_id            = aws_vpc.client1.id
   cidr_block        = "10.1.0.0/25"
@@ -35,6 +49,21 @@ resource "aws_vpc" "client2" {
   }
 }
 
+# VPC S3 Gateway Endpoint - Client 2
+resource "aws_vpc_endpoint" "s3_client2" {
+  vpc_id            = aws_vpc.client2.id
+  service_name      = "com.amazonaws.${var.region}.s3"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = [
+    aws_route_table.client2_rt.id
+  ]
+
+  tags = {
+    Name = "s3-endpoint-client2"
+  }
+}
+
 resource "aws_subnet" "client2_subnet" {
   vpc_id            = aws_vpc.client2.id
   cidr_block        = "10.100.0.0/25"
@@ -53,6 +82,22 @@ resource "aws_vpc" "client2_bis" {
   
   tags = {
     Name = "VPC-Client2-Bis"
+  }
+}
+
+
+# VPC S3 Gateway Endpoint - Client2 Bis
+resource "aws_vpc_endpoint" "s3_client2_bis" {
+  vpc_id            = aws_vpc.client2_bis.id
+  service_name      = "com.amazonaws.${var.region}.s3"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = [
+    aws_route_table.client2_bis_rt.id
+  ]
+
+  tags = {
+    Name = "s3-endpoint-client2-bis"
   }
 }
 
@@ -87,6 +132,32 @@ resource "aws_subnet" "provider_subnet" {
   }
 }
 
+
+resource "aws_route_table" "provider_rt_priv"{
+  vpc_id = aws_vpc.provider.id
+
+  route {
+    cidr_block                = aws_vpc.provider_bis.cidr_block
+    vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
+  }
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_nat_gateway.provider_nat.id
+  }
+
+  tags = {
+    Name = "Provider-Route-Table-Private"
+  }
+
+}
+
+# Route table associations
+resource "aws_route_table_association" "provider_subnet_association" {
+  subnet_id      = aws_subnet.provider_subnet.id
+  route_table_id = aws_route_table.provider_rt_priv.id
+}
+
 # Provider Bis VPC
 resource "aws_vpc" "provider_bis" {
   cidr_block           = "10.201.0.0/24"
@@ -98,6 +169,8 @@ resource "aws_vpc" "provider_bis" {
   }
 }
 
+
+
 resource "aws_subnet" "provider_bis_subnet" {
   vpc_id            = aws_vpc.provider_bis.id
   cidr_block        = "10.201.0.0/25"
@@ -106,6 +179,31 @@ resource "aws_subnet" "provider_bis_subnet" {
   tags = {
     Name = "Provider-Bis-Subnet"
   }
+}
+
+resource "aws_route_table" "provider_bis_rt_priv"{
+  vpc_id = aws_vpc.provider_bis.id
+
+  route {
+    cidr_block                = aws_vpc.provider.cidr_block
+    vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
+  }
+
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_nat_gateway.provider_bis_nat.id
+  }
+
+  tags = {
+    Name = "Provider_bis-Route-Table-Private"
+  }
+
+}
+
+# Route table associations
+resource "aws_route_table_association" "provider_bis_subnet_association" {
+  subnet_id      = aws_subnet.provider_bis_subnet.id
+  route_table_id = aws_route_table.provider_bis_rt_priv.id
 }
 
 # VPC Peering between Provider and Provider Bis
@@ -118,6 +216,7 @@ resource "aws_vpc_peering_connection" "provider_to_bis" {
     Name = "Provider-to-Bis-Peering"
   }
 }
+
 
 # Route tables for VPC peering
 resource "aws_route_table" "provider_rt" {
@@ -228,7 +327,7 @@ resource "aws_vpc_endpoint" "client1_ssm" {
   service_name       = "com.amazonaws.${var.region}.ssm"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client1_vpce.id]
-  subnet_ids         = data.aws_subnets.client1sublist.ids 
+  subnet_ids         = [aws_subnet.client1_subnet.id] 
   private_dns_enabled = true
 }
 
@@ -237,7 +336,7 @@ resource "aws_vpc_endpoint" "client1_ssmmessages" {
   service_name       = "com.amazonaws.${var.region}.ssmmessages"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client1_vpce.id]
-  subnet_ids         = data.aws_subnets.client1sublist.ids
+  subnet_ids         = [aws_subnet.client1_subnet.id]
   private_dns_enabled = true
 }
 
@@ -246,7 +345,17 @@ resource "aws_vpc_endpoint" "client1_ec2messages" {
   service_name       = "com.amazonaws.${var.region}.ec2messages"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client1_vpce.id]
-  subnet_ids         = data.aws_subnets.client1sublist.ids
+  subnet_ids         = [aws_subnet.client1_subnet.id]
+  private_dns_enabled = true
+}
+
+
+resource "aws_vpc_endpoint" "client1_ec2" {
+  vpc_id             = aws_vpc.client1.id
+  service_name       = "com.amazonaws.${var.region}.ec2"
+  vpc_endpoint_type  = "Interface"
+  security_group_ids = [aws_security_group.client1_vpce.id]
+  subnet_ids         = [aws_subnet.client1_subnet.id]
   private_dns_enabled = true
 }
 
@@ -256,7 +365,7 @@ resource "aws_vpc_endpoint" "client2_ssm" {
   service_name       = "com.amazonaws.${var.region}.ssm"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client2_vpce.id]
-  subnet_ids         = data.aws_subnets.client2sublist.ids
+  subnet_ids         = [aws_subnet.client2_subnet.id]
   private_dns_enabled = true
 }
 
@@ -265,7 +374,7 @@ resource "aws_vpc_endpoint" "client2_ssmmessages" {
   service_name       = "com.amazonaws.${var.region}.ssmmessages"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client2_vpce.id]
-  subnet_ids         = data.aws_subnets.client2sublist.ids
+  subnet_ids         = [aws_subnet.client2_subnet.id]
   private_dns_enabled = true
 }
 
@@ -274,7 +383,16 @@ resource "aws_vpc_endpoint" "client2_ec2messages" {
   service_name       = "com.amazonaws.${var.region}.ec2messages"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client2_vpce.id]
-  subnet_ids         = data.aws_subnets.client2sublist.ids
+  subnet_ids         = [aws_subnet.client2_subnet.id]
+  private_dns_enabled = true
+}
+
+resource "aws_vpc_endpoint" "client2_ec2" {
+  vpc_id             = aws_vpc.client2.id
+  service_name       = "com.amazonaws.${var.region}.ec2"
+  vpc_endpoint_type  = "Interface"
+  security_group_ids = [aws_security_group.client2_vpce.id]
+  subnet_ids         = [aws_subnet.client2_subnet.id]
   private_dns_enabled = true
 }
 
@@ -284,7 +402,7 @@ resource "aws_vpc_endpoint" "client2_bis_ssm" {
   service_name       = "com.amazonaws.${var.region}.ssm"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client2_bis_vpce.id]
-  subnet_ids         = data.aws_subnets.client2bissublist.ids
+  subnet_ids         = [aws_subnet.client2_bis_subnet.id]
   private_dns_enabled = true
 }
 
@@ -293,7 +411,7 @@ resource "aws_vpc_endpoint" "client2_bis_ssmmessages" {
   service_name       = "com.amazonaws.${var.region}.ssmmessages"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client2_bis_vpce.id]
-  subnet_ids         = data.aws_subnets.client2bissublist.ids
+  subnet_ids         = [aws_subnet.client2_bis_subnet.id]
   private_dns_enabled = true
 }
 
@@ -302,65 +420,21 @@ resource "aws_vpc_endpoint" "client2_bis_ec2messages" {
   service_name       = "com.amazonaws.${var.region}.ec2messages"
   vpc_endpoint_type  = "Interface"
   security_group_ids = [aws_security_group.client2_bis_vpce.id]
-  subnet_ids         = data.aws_subnets.client2bissublist.ids
+  subnet_ids         = [aws_subnet.client2_bis_subnet.id]
   private_dns_enabled = true
 }
 
-# VPC Endpoints for Systems Manager (SSM) - Provider VPC
-resource "aws_vpc_endpoint" "provider_ssm" {
-  vpc_id             = aws_vpc.provider.id
-  service_name       = "com.amazonaws.${var.region}.ssm"
+resource "aws_vpc_endpoint" "client2_bis_ec2" {
+  vpc_id             = aws_vpc.client2_bis.id
+  service_name       = "com.amazonaws.${var.region}.ec2"
   vpc_endpoint_type  = "Interface"
-  security_group_ids = [aws_security_group.provider_vpce.id]
-  subnet_ids         = data.aws_subnets.providersublist.ids
+  security_group_ids = [aws_security_group.client2_bis_vpce.id]
+  subnet_ids         = [aws_subnet.client2_bis_subnet.id]
   private_dns_enabled = true
 }
 
-resource "aws_vpc_endpoint" "provider_ssmmessages" {
-  vpc_id             = aws_vpc.provider.id
-  service_name       = "com.amazonaws.${var.region}.ssmmessages"
-  vpc_endpoint_type  = "Interface"
-  security_group_ids = [aws_security_group.provider_vpce.id]
-  subnet_ids         = data.aws_subnets.providersublist.ids
-  private_dns_enabled = true
-}
 
-resource "aws_vpc_endpoint" "provider_ec2messages" {
-  vpc_id             = aws_vpc.provider.id
-  service_name       = "com.amazonaws.${var.region}.ec2messages"
-  vpc_endpoint_type  = "Interface"
-  security_group_ids = [aws_security_group.provider_vpce.id]
-  subnet_ids         = data.aws_subnets.providersublist.ids 
-  private_dns_enabled = true
-}
 
-# VPC Endpoints for Systems Manager (SSM) - Provider_bis VPC
-resource "aws_vpc_endpoint" "provider_bis_ssm" {
-  vpc_id             = aws_vpc.provider_bis.id
-  service_name       = "com.amazonaws.${var.region}.ssm"
-  vpc_endpoint_type  = "Interface"
-  security_group_ids = [aws_security_group.provider_bis_vpce.id]
-  subnet_ids         = data.aws_subnets.providerbissublist.ids 
-  private_dns_enabled = true
-}
-
-resource "aws_vpc_endpoint" "provider_bis_ssmmessages" {
-  vpc_id             = aws_vpc.provider_bis.id
-  service_name       = "com.amazonaws.${var.region}.ssmmessages"
-  vpc_endpoint_type  = "Interface"
-  security_group_ids = [aws_security_group.provider_bis_vpce.id]
-  subnet_ids         = data.aws_subnets.providerbissublist.ids
-  private_dns_enabled = true
-}
-
-resource "aws_vpc_endpoint" "provider_bis_ec2messages" {
-  vpc_id             = aws_vpc.provider_bis.id
-  service_name       = "com.amazonaws.${var.region}.ec2messages"
-  vpc_endpoint_type  = "Interface"
-  security_group_ids = [aws_security_group.provider_bis_vpce.id]
-  subnet_ids         = data.aws_subnets.providerbissublist.ids
-  private_dns_enabled = true
-}
 
 # Security Groups for VPC Endpoints
 resource "aws_security_group" "client1_vpce" {
@@ -368,11 +442,19 @@ resource "aws_security_group" "client1_vpce" {
   description = "Security group for Client1 VPC Endpoints"
   vpc_id      = aws_vpc.client1.id
 
+
   ingress {
     from_port   = 443
     to_port     = 443
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.client1.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "all"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
@@ -387,6 +469,13 @@ resource "aws_security_group" "client2_vpce" {
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.client2.cidr_block]
   }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "all"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
 }
 
 resource "aws_security_group" "client2_bis_vpce" {
@@ -400,33 +489,15 @@ resource "aws_security_group" "client2_bis_vpce" {
     protocol    = "tcp"
     cidr_blocks = [aws_vpc.client2_bis.cidr_block]
   }
-}
-
-resource "aws_security_group" "provider_vpce" {
-  name        = "provider-vpce-sg"
-  description = "Security group for Provider VPC Endpoints"
-  vpc_id      = aws_vpc.provider.id
-
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.provider.cidr_block]
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "all"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-resource "aws_security_group" "provider_bis_vpce" {
-  name        = "provider-bis-vpce-sg"
-  description = "Security group for Provider_bis VPC Endpoints"
-  vpc_id      = aws_vpc.provider_bis.id
 
-  ingress {
-    from_port   = 443
-    to_port     = 443
-    protocol    = "tcp"
-    cidr_blocks = [aws_vpc.provider_bis.cidr_block]
-  }
-}
 
 # Data source to get the latest Amazon Linux 2 AMI
 data "aws_ami" "amazon_linux_2" {
@@ -503,9 +574,65 @@ resource "aws_instance" "provider_instance" {
   instance_type = "t3a.micro"
   subnet_id     = aws_subnet.provider_subnet.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+  user_data     = <<-EOF
+              #!/bin/bash
+              yum update -y
+              yum install -y httpd php
+              systemctl start httpd
+              systemctl enable httpd
+              cat << 'PHPSCRIPT' > /var/www/html/index.php
+              <?php
+                # Print my IP:
+                echo "RESOURCE-1 ";
+                echo "\n";
+                echo "\n";
+                echo "LOCAL SERVER IP: ";
+                echo $_SERVER['SERVER_ADDR'];
+
+                # Print out the client IP
+                echo "\n";
+                echo "REMOTE CLIENT IP: ";
+                echo $_SERVER['REMOTE_ADDR'];
+
+                # Print out the x-forwarded IP (if behind a proxy/load balancer)
+                echo "\n";
+                echo "X-FORWARDED-FOR: ";
+                echo isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : 'N/A';
+
+                # Print HTTP Host Header
+                echo "\n";
+                echo "HOST-HEADER: ";
+                echo $_SERVER['HTTP_HOST'];
+
+                # Print the TCP port the client is connecting to
+                echo "\n";
+                echo "SERVER PORT: ";
+                echo $_SERVER['SERVER_PORT'];
+
+                # Print AWS Lattice Headers
+                echo "\n";
+                echo "X-AMZN-LATTICE-IDENTITY: ";
+                echo isset($_SERVER['HTTP_X_AMZN_LATTICE_IDENTITY']) ? $_SERVER['HTTP_X_AMZN_LATTICE_IDENTITY'] : 'N/A';
+
+                echo "\n";
+                echo "X-AMZN-LATTICE-NETWORK: ";
+                echo isset($_SERVER['HTTP_X_AMZN_LATTICE_NETWORK']) ? $_SERVER['HTTP_X_AMZN_LATTICE_NETWORK'] : 'N/A';
+
+                echo "\n";
+                echo "X-AMZN-LATTICE-TARGET: ";
+                echo isset($_SERVER['HTTP_X_AMZN_LATTICE_TARGET']) ? $_SERVER['HTTP_X_AMZN_LATTICE_TARGET'] : 'N/A';
+
+                echo "\n";
+                echo "\n";
+              ?>
+              PHPSCRIPT
+              EOF
+  user_data_replace_on_change = true
   tags = {
     Name = "Provider-Instance"
   }
+
+  depends_on = [ aws_nat_gateway.provider_nat ]
 }
 
 # EC2 Instance in Provider Bis VPC
@@ -514,9 +641,65 @@ resource "aws_instance" "provider_bis_instance" {
   instance_type = "t3a.micro"
   subnet_id     = aws_subnet.provider_bis_subnet.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+    user_data     = <<-EOF
+              #!/bin/bash
+              yum update -y
+              yum install -y httpd php
+              systemctl start httpd
+              systemctl enable httpd
+              cat << 'PHPSCRIPT' > /var/www/html/index.php
+              <?php
+                # Print my IP:
+                echo "RESOURCE-1 ";
+                echo "\n";
+                echo "\n";
+                echo "LOCAL SERVER IP: ";
+                echo $_SERVER['SERVER_ADDR'];
+
+                # Print out the client IP
+                echo "\n";
+                echo "REMOTE CLIENT IP: ";
+                echo $_SERVER['REMOTE_ADDR'];
+
+                # Print out the x-forwarded IP (if behind a proxy/load balancer)
+                echo "\n";
+                echo "X-FORWARDED-FOR: ";
+                echo isset($_SERVER['HTTP_X_FORWARDED_FOR']) ? $_SERVER['HTTP_X_FORWARDED_FOR'] : 'N/A';
+
+                # Print HTTP Host Header
+                echo "\n";
+                echo "HOST-HEADER: ";
+                echo $_SERVER['HTTP_HOST'];
+
+                # Print the TCP port the client is connecting to
+                echo "\n";
+                echo "SERVER PORT: ";
+                echo $_SERVER['SERVER_PORT'];
+
+                # Print AWS Lattice Headers
+                echo "\n";
+                echo "X-AMZN-LATTICE-IDENTITY: ";
+                echo isset($_SERVER['HTTP_X_AMZN_LATTICE_IDENTITY']) ? $_SERVER['HTTP_X_AMZN_LATTICE_IDENTITY'] : 'N/A';
+
+                echo "\n";
+                echo "X-AMZN-LATTICE-NETWORK: ";
+                echo isset($_SERVER['HTTP_X_AMZN_LATTICE_NETWORK']) ? $_SERVER['HTTP_X_AMZN_LATTICE_NETWORK'] : 'N/A';
+
+                echo "\n";
+                echo "X-AMZN-LATTICE-TARGET: ";
+                echo isset($_SERVER['HTTP_X_AMZN_LATTICE_TARGET']) ? $_SERVER['HTTP_X_AMZN_LATTICE_TARGET'] : 'N/A';
+
+                echo "\n";
+                echo "\n";
+              ?>
+              PHPSCRIPT
+              EOF
+  user_data_replace_on_change = true
   tags = {
     Name = "Provider-Bis-Instance"
   }
+
+  depends_on = [ aws_nat_gateway.provider_bis_nat ]
 }
 
 
@@ -573,4 +756,16 @@ resource "aws_vpclattice_service_network_vpc_association" "provider_bis_associat
   tags = {
     Name = "Provider-Bis-ServiceNetwork-Association"
   }
+}
+
+resource "aws_vpclattice_resource_gateway" "example" {
+  name       = "latticerg-provider"
+  vpc_id     = aws_vpc.provider.id
+  subnet_ids = [aws_subnet.provider_subnet.id]
+
+  tags = {
+    Environment = "Example"
+  }
+
+  depends_on = [ aws_vpc.provider, aws_subnet.provider_subnet ]
 }
