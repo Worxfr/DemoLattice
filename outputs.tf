@@ -17,3 +17,15 @@ output "vpc_provider_id" {
 output "vpc_provider_bis_id" {
   value = aws_vpc.provider_bis.id
 }
+
+output "service1dnsname"{
+  value = aws_vpclattice_service.service1.dns_entry
+}
+
+output "NetworkServiceVPCE-tg"{
+  value = aws_vpc_endpoint.SNI-VPC2-Tg
+}
+
+output "NetworkServiceVPCE-res"{
+  value = aws_vpc_endpoint.SNI-VPC2-Res
+}

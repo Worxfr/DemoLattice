@@ -211,11 +211,28 @@ resource "aws_vpc_peering_connection" "provider_to_bis" {
   peer_vpc_id = aws_vpc.provider.id
   vpc_id      = aws_vpc.provider_bis.id
   auto_accept = true
+  
 
   tags = {
     Name = "Provider-to-Bis-Peering"
   }
 }
+
+resource "aws_vpc_peering_connection_options" "bis_to_provider_option_vpcpeering" {
+  # Options can't be set until the connection has been accepted
+  # You can try a provisioner here if you want to do some task once the connection is accepted
+
+  vpc_peering_connection_id = aws_vpc_peering_connection.client2_to_bis.id
+
+  accepter {
+    allow_remote_vpc_dns_resolution = true
+  }
+
+  requester {
+    allow_remote_vpc_dns_resolution = true
+  }
+}
+
 
 
 # Route tables for VPC peering
@@ -251,9 +268,25 @@ resource "aws_vpc_peering_connection" "client2_to_bis" {
   peer_vpc_id = aws_vpc.client2.id
   vpc_id      = aws_vpc.client2_bis.id
   auto_accept = true
+  
 
   tags = {
     Name = "Client2-to-Bis-Peering"
+  }
+}
+
+resource "aws_vpc_peering_connection_options" "client2_to_bis_option_vpcpeering" {
+  # Options can't be set until the connection has been accepted
+  # You can try a provisioner here if you want to do some task once the connection is accepted
+
+  vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
+
+  accepter {
+    allow_remote_vpc_dns_resolution = true
+  }
+
+  requester {
+    allow_remote_vpc_dns_resolution = true
   }
 }
 
@@ -555,6 +588,19 @@ resource "aws_instance" "client1_instance" {
   tags = {
     Name = "Client1-Instance"
   }
+
+}
+
+# EC2 Instance in Client2 VPC
+resource "aws_instance" "client2_instance" {
+  ami           = data.aws_ami.amazon_linux_2.id
+  instance_type = "t3a.micro"
+  subnet_id     = aws_subnet.client2_subnet.id
+  iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+  tags = {
+    Name = "Client2-Instance"
+  }
+
 }
 
 # EC2 Instance in Client2 Bis VPC
@@ -568,12 +614,45 @@ resource "aws_instance" "client2_bis_instance" {
   }
 }
 
+resource "aws_security_group" "allow_http_icmp" {
+  name        = "allow_http_icmp"
+  description = "Allow HTTP and ICMP inbound traffic"
+  vpc_id      = aws_vpc.provider.id
+
+  ingress {
+    from_port   = 0
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+
+  }
+
+  ingress {
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "allow_http_icmp"
+  }
+}
+
 # EC2 Instance in Provider VPC
 resource "aws_instance" "provider_instance" {
   ami           = data.aws_ami.amazon_linux_2.id
   instance_type = "t3a.micro"
   subnet_id     = aws_subnet.provider_subnet.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+  security_groups = [aws_security_group.allow_http_icmp.id]
   user_data     = <<-EOF
               #!/bin/bash
               yum update -y
@@ -583,7 +662,7 @@ resource "aws_instance" "provider_instance" {
               cat << 'PHPSCRIPT' > /var/www/html/index.php
               <?php
                 # Print my IP:
-                echo "RESOURCE-1 ";
+                echo "SERVICE-1 ";
                 echo "\n";
                 echo "\n";
                 echo "LOCAL SERVER IP: ";
@@ -627,7 +706,6 @@ resource "aws_instance" "provider_instance" {
               ?>
               PHPSCRIPT
               EOF
-  user_data_replace_on_change = true
   tags = {
     Name = "Provider-Instance"
   }
@@ -635,12 +713,112 @@ resource "aws_instance" "provider_instance" {
   depends_on = [ aws_nat_gateway.provider_nat ]
 }
 
+# Create target group for provider instance
+resource "aws_vpclattice_target_group" "provider_tg" {
+  name = "provider-target-group"
+  type = "INSTANCE"
+  config {
+    port = 80
+    protocol = "HTTP"
+    vpc_identifier = aws_vpc.provider.id
+    health_check {
+      enabled = true
+      protocol = "HTTP"
+      path = "/index.php"
+      port = 80
+    }
+  }
+  tags = {
+    Name = "Provider-Target-Group"
+  }
+}
+
+# Attach provider instance to target group
+resource "aws_vpclattice_target_group_attachment" "provider_tg_attachment" {
+  target_group_identifier = aws_vpclattice_target_group.provider_tg.id
+  target {
+    id   = aws_instance.provider_instance.id
+    port = 80
+  }
+}
+
+
+# Create VPC Lattice Service
+resource "aws_vpclattice_service" "service1" {
+  name               = "service1"
+  auth_type         = "NONE"
+
+  tags = {
+    Name = "Example Service"
+  }
+}
+
+# Associate service with service network
+resource "aws_vpclattice_service_network_service_association" "service1asso" {
+  service_identifier         = aws_vpclattice_service.service1.id
+  service_network_identifier = aws_vpclattice_service_network.service_network.id
+
+  tags = {
+    Name = "Service-Network-Association"
+  }
+}
+
+# Create listener for the service
+resource "aws_vpclattice_listener" "service1" {
+  name               = "example-listener"
+  protocol          = "HTTP"
+  port              = 80
+  service_identifier = aws_vpclattice_service.service1.id
+
+  default_action {
+    forward {
+      target_groups {
+        target_group_identifier = aws_vpclattice_target_group.provider_tg.id
+        weight                 = 100
+      }
+    }
+  }
+}
+
+resource "aws_security_group" "allow_http_icmp_bis" {
+  name        = "allow_http_icmp"
+  description = "Allow HTTP and ICMP inbound traffic"
+  vpc_id      = aws_vpc.provider_bis.id
+
+  ingress {
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  ingress {
+    from_port   = -1
+    to_port     = -1
+    protocol    = "icmp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "allow_http_icmp"
+  }
+}
+
+
 # EC2 Instance in Provider Bis VPC
 resource "aws_instance" "provider_bis_instance" {
   ami           = data.aws_ami.amazon_linux_2.id
   instance_type = "t3a.micro"
   subnet_id     = aws_subnet.provider_bis_subnet.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
+  security_groups = [aws_security_group.allow_http_icmp_bis.id]
     user_data     = <<-EOF
               #!/bin/bash
               yum update -y
@@ -694,7 +872,6 @@ resource "aws_instance" "provider_bis_instance" {
               ?>
               PHPSCRIPT
               EOF
-  user_data_replace_on_change = true
   tags = {
     Name = "Provider-Bis-Instance"
   }
@@ -722,50 +899,88 @@ resource "aws_vpclattice_service_network_vpc_association" "client1_association" 
   }
 }
 
-resource "aws_vpclattice_service_network_vpc_association" "client2_association" {
-  vpc_identifier             = aws_vpc.client2.id
-  service_network_identifier = aws_vpclattice_service_network.service_network.id
-  
+
+
+
+resource "aws_security_group" "allow_all" {
+  name        = "allow_all"
+  description = "Allow all inbound/outbound traffic"
+  vpc_id      = aws_vpc.client2.id
+
+  ingress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1" 
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
   tags = {
-    Name = "Client2-ServiceNetwork-Association"
+    Name = "allow_all"
   }
 }
 
-resource "aws_vpclattice_service_network_vpc_association" "client2_bis_association" {
-  vpc_identifier             = aws_vpc.client2_bis.id
-  service_network_identifier = aws_vpclattice_service_network.service_network.id
-  
-  tags = {
-    Name = "Client2-Bis-ServiceNetwork-Association"
-  }
+resource "aws_vpc_endpoint" "SNI-VPC2-Tg" {
+  vpc_id             = aws_vpc.client2.id
+  service_network_arn = aws_vpclattice_service_network.service_network.arn
+  vpc_endpoint_type  = "ServiceNetwork"
+  security_group_ids = [aws_security_group.allow_all.id]
+  subnet_ids         = [aws_subnet.client2_subnet.id]
+  private_dns_enabled = true
 }
 
-resource "aws_vpclattice_service_network_vpc_association" "provider_association" {
-  vpc_identifier             = aws_vpc.provider.id
-  service_network_identifier = aws_vpclattice_service_network.service_network.id
-  
-  tags = {
-    Name = "Provider-ServiceNetwork-Association"
-  }
-}
-
-resource "aws_vpclattice_service_network_vpc_association" "provider_bis_association" {
-  vpc_identifier             = aws_vpc.provider_bis.id
-  service_network_identifier = aws_vpclattice_service_network.service_network.id
-  
-  tags = {
-    Name = "Provider-Bis-ServiceNetwork-Association"
-  }
-}
-
-resource "aws_vpclattice_resource_gateway" "example" {
+resource "aws_vpclattice_resource_gateway" "provider_rg" {
   name       = "latticerg-provider"
   vpc_id     = aws_vpc.provider.id
   subnet_ids = [aws_subnet.provider_subnet.id]
 
   tags = {
-    Environment = "Example"
+    Name = "Provider-Resource-Gateway"
   }
 
-  depends_on = [ aws_vpc.provider, aws_subnet.provider_subnet ]
+  depends_on = [aws_vpc.provider, aws_subnet.provider_subnet]
+}
+
+
+resource "aws_vpclattice_resource_configuration" "example" {
+  name = "example"
+
+  resource_gateway_identifier = aws_vpclattice_resource_gateway.provider_rg.id
+
+  port_ranges = ["80"]
+  protocol    = "TCP"
+
+  resource_configuration_definition {
+    ip_resource {
+      ip_address = aws_instance.provider_bis_instance.private_ip
+    }
+  }
+
+  tags = {
+    Environment = "Example"
+  }
+}
+
+resource "aws_vpclattice_service_network_resource_association" "example" {
+  resource_configuration_identifier = aws_vpclattice_resource_configuration.example.id
+  service_network_identifier        = aws_vpclattice_service_network.service_network.id
+
+  tags = {
+    Name = "Example"
+  }
+}
+
+resource "aws_vpc_endpoint" "SNI-VPC2-Res" {
+  vpc_id             = aws_vpc.client2.id
+  resource_configuration_arn = aws_vpclattice_resource_configuration.example.arn
+  vpc_endpoint_type  = "Resource"
+  security_group_ids = [aws_security_group.allow_all.id]
+  subnet_ids         = [aws_subnet.client2_subnet.id]
+  private_dns_enabled = true
 }
