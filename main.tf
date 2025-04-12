@@ -3,6 +3,12 @@ provider "aws" {
   region = var.region
 }
 
+# Backend configuration for S3
+terraform {
+  backend "s3" {
+  }
+}
+
 # VPC Client 1
 resource "aws_vpc" "client1" {
   cidr_block           = "10.1.0.0/24"
