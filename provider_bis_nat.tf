@@ -1,7 +1,7 @@
 # Public subnet for the provider bis VPC
 resource "aws_subnet" "provider_bis_public_subnet" {
   vpc_id                  = aws_vpc.provider_bis.id
-  cidr_block             = "10.201.0.128/25"  # New CIDR for public subnet
+  cidr_block             = "10.200.0.128/25"  # New CIDR for public subnet
   availability_zone       = aws_subnet.provider_bis_subnet.availability_zone
   map_public_ip_on_launch = true
 

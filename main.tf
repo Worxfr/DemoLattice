@@ -40,7 +40,7 @@ resource "aws_subnet" "client1_subnet" {
 
 # VPC Client 2
 resource "aws_vpc" "client2" {
-  cidr_block           = "10.100.0.0/24"
+  cidr_block           = "10.1.0.0/24"
   enable_dns_hostnames = true
   enable_dns_support   = true
   
@@ -66,7 +66,7 @@ resource "aws_vpc_endpoint" "s3_client2" {
 
 resource "aws_subnet" "client2_subnet" {
   vpc_id            = aws_vpc.client2.id
-  cidr_block        = "10.100.0.0/25"
+  cidr_block        = "10.1.0.0/25"
   availability_zone = var.availability_zones[0]
 
   tags = {
@@ -113,7 +113,7 @@ resource "aws_subnet" "client2_bis_subnet" {
 
 # Provider VPC
 resource "aws_vpc" "provider" {
-  cidr_block           = "10.200.0.0/24"
+  cidr_block           = "10.1.0.0/24"
   enable_dns_hostnames = true
   enable_dns_support   = true
   
@@ -124,7 +124,7 @@ resource "aws_vpc" "provider" {
 
 resource "aws_subnet" "provider_subnet" {
   vpc_id            = aws_vpc.provider.id
-  cidr_block        = "10.200.0.0/25"
+  cidr_block        = "10.1.0.0/25"
   availability_zone = var.availability_zones[0]
 
   tags = {
@@ -160,7 +160,7 @@ resource "aws_route_table_association" "provider_subnet_association" {
 
 # Provider Bis VPC
 resource "aws_vpc" "provider_bis" {
-  cidr_block           = "10.201.0.0/24"
+  cidr_block           = "10.200.0.0/24"
   enable_dns_hostnames = true
   enable_dns_support   = true
   
@@ -173,7 +173,7 @@ resource "aws_vpc" "provider_bis" {
 
 resource "aws_subnet" "provider_bis_subnet" {
   vpc_id            = aws_vpc.provider_bis.id
-  cidr_block        = "10.201.0.0/25"
+  cidr_block        = "10.200.0.0/25"
   availability_zone = var.availability_zones[0]
 
   tags = {
@@ -318,6 +318,20 @@ resource "aws_route_table" "client2_bis_rt" {
     Name = "Client2-Bis-Route-Table"
   }
 }
+
+
+# Route table associations for Client2
+resource "aws_route_table_association" "client2_subnet_association" {
+  subnet_id      = aws_subnet.client2_subnet.id
+  route_table_id = aws_route_table.client2_rt.id
+}
+
+# Route table associations for Client2 Bis
+resource "aws_route_table_association" "client2_bis_subnet_association" {
+  subnet_id      = aws_subnet.client2_bis_subnet.id
+  route_table_id = aws_route_table.client2_bis_rt.id
+}
+
 
 data "aws_subnets" "client1sublist" {
   filter {
@@ -662,8 +676,13 @@ resource "aws_instance" "provider_instance" {
               cat << 'PHPSCRIPT' > /var/www/html/index.php
               <?php
                 # Print my IP:
-                echo "SERVICE-1 ";
                 echo "\n";
+                echo "███████╗███████╗██████╗ ██╗   ██╗██╗ ██████╗███████╗     ██╗\n";
+                echo "██╔════╝██╔════╝██╔══██╗██║   ██║██║██╔════╝██╔════╝    ███║\n";
+                echo "███████╗█████╗  ██████╔╝██║   ██║██║██║     █████╗      ╚██║\n";
+                echo "╚════██║██╔══╝  ██╔══██╗╚██╗ ██╔╝██║██║     ██╔══╝       ██║\n";
+                echo "███████║███████╗██║  ██║ ╚████╔╝ ██║╚██████╗███████╗     ██║\n";
+                echo "╚══════╝╚══════╝╚═╝  ╚═╝  ╚═══╝  ╚═╝ ╚═════╝╚══════╝     ╚═╝\n";
                 echo "\n";
                 echo "LOCAL SERVER IP: ";
                 echo $_SERVER['SERVER_ADDR'];
@@ -828,8 +847,13 @@ resource "aws_instance" "provider_bis_instance" {
               cat << 'PHPSCRIPT' > /var/www/html/index.php
               <?php
                 # Print my IP:
-                echo "RESOURCE-1 ";
                 echo "\n";
+                echo "██████╗ ███████╗███████╗ ██████╗ ██╗   ██╗██████╗  ██████╗███████╗     ██╗\n";
+                echo "██╔══██╗██╔════╝██╔════╝██╔═══██╗██║   ██║██╔══██╗██╔════╝██╔════╝    ███║\n";
+                echo "██████╔╝█████╗  ███████╗██║   ██║██║   ██║██████╔╝██║     █████╗      ╚██║\n";
+                echo "██╔══██╗██╔══╝  ╚════██║██║   ██║██║   ██║██╔══██╗██║     ██╔══╝       ██║\n";
+                echo "██║  ██║███████╗███████║╚██████╔╝╚██████╔╝██║  ██║╚██████╗███████╗     ██║\n";
+                echo "╚═╝  ╚═╝╚══════╝╚══════╝ ╚═════╝  ╚═════╝ ╚═╝  ╚═╝ ╚═════╝╚══════╝     ╚═╝\n";
                 echo "\n";
                 echo "LOCAL SERVER IP: ";
                 echo $_SERVER['SERVER_ADDR'];
