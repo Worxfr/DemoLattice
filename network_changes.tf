@@ -51,16 +51,10 @@ resource "aws_route_table" "provider_public_rt" {
 }
 
 # Associate public route table with public subnet
-resource "aws_route_table_association" "provider_public_rta" {
+resource "aws_route_table_association" "provider_public_rt" {
   subnet_id      = aws_subnet.provider_public_subnet.id
   route_table_id = aws_route_table.provider_public_rt.id
 }
 
-# Add NAT Gateway route to the private subnet route table
-resource "aws_route" "private_nat_gateway" {
-  route_table_id         = aws_route_table.provider_rt.id
-  destination_cidr_block = "0.0.0.0/0"
-  nat_gateway_id        = aws_nat_gateway.provider_nat.id
-}
 
 

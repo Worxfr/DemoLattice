@@ -5,6 +5,12 @@ provider "aws" {
 
 # Backend configuration for S3
 terraform {
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = ">= 5.30"
+    }
+  }
   backend "s3" {
   }
 }
@@ -142,20 +148,25 @@ resource "aws_subnet" "provider_subnet" {
 resource "aws_route_table" "provider_rt_priv"{
   vpc_id = aws_vpc.provider.id
 
-  route {
-    cidr_block                = aws_vpc.provider_bis.cidr_block
-    vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
-  }
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.provider_nat.id
-  }
-
   tags = {
     Name = "Provider-Route-Table-Private"
   }
 
+}
+
+resource "aws_route" "provider_rt_priv_default"{
+  route_table_id = aws_route_table.provider_rt_priv.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id = aws_nat_gateway.provider_nat.id
+  depends_on = [ aws_nat_gateway.provider_nat ]
+}
+
+resource "aws_route" "provider_rt_priv_peer" {
+  route_table_id = aws_route_table.provider_rt_priv.id
+  destination_cidr_block = aws_vpc.provider_bis.cidr_block
+  vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
+
+  depends_on = [ aws_vpc_peering_connection.provider_to_bis ]
 }
 
 # Route table associations
@@ -190,20 +201,25 @@ resource "aws_subnet" "provider_bis_subnet" {
 resource "aws_route_table" "provider_bis_rt_priv"{
   vpc_id = aws_vpc.provider_bis.id
 
-  route {
-    cidr_block                = aws_vpc.provider.cidr_block
-    vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
-  }
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.provider_bis_nat.id
-  }
-
   tags = {
     Name = "Provider_bis-Route-Table-Private"
   }
 
+}
+
+resource "aws_route" "provider_bis_rt_priv_default"{
+  route_table_id = aws_route_table.provider_bis_rt_priv.id
+  destination_cidr_block = "0.0.0.0/0"
+  nat_gateway_id = aws_nat_gateway.provider_bis_nat.id
+  depends_on = [ aws_nat_gateway.provider_bis_nat ]
+}
+
+resource "aws_route" "provider_bis_rt_priv_peer" {
+  route_table_id = aws_route_table.provider_bis_rt_priv.id
+  destination_cidr_block = aws_vpc.provider.cidr_block
+  vpc_peering_connection_id = aws_vpc_peering_connection.provider_to_bis.id
+
+  depends_on = [ aws_vpc_peering_connection.provider_to_bis ]
 }
 
 # Route table associations
@@ -242,7 +258,7 @@ resource "aws_vpc_peering_connection_options" "bis_to_provider_option_vpcpeering
 
 
 # Route tables for VPC peering
-resource "aws_route_table" "provider_rt" {
+/*resource "aws_route_table" "provider_rt" {
   vpc_id = aws_vpc.provider.id
 
   route {
@@ -266,7 +282,7 @@ resource "aws_route_table" "provider_bis_rt" {
   tags = {
     Name = "Provider-Bis-Route-Table"
   }
-}
+}*/
 
 
 # VPC Peering between Client 2 and Client 2 Bis
@@ -607,6 +623,7 @@ resource "aws_instance" "client1_instance" {
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
   tags = {
     Name = "Client1-Instance"
+    "Patch Group" = "DEV"
   }
 
 }
@@ -619,6 +636,7 @@ resource "aws_instance" "client2_instance" {
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
   tags = {
     Name = "Client2-Instance"
+    "Patch Group" = "DEV"
   }
 
 }
@@ -631,6 +649,7 @@ resource "aws_instance" "client2_bis_instance" {
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
   tags = {
     Name = "Client2-Bis-Instance"
+    "Patch Group" = "DEV"
   }
 }
 
@@ -672,7 +691,7 @@ resource "aws_instance" "provider_instance" {
   instance_type = "t3a.micro"
   subnet_id     = aws_subnet.provider_subnet.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
-  security_groups = [aws_security_group.allow_http_icmp.id]
+  vpc_security_group_ids = [aws_security_group.allow_http_icmp.id]
   user_data     = <<-EOF
               #!/bin/bash
               yum update -y
@@ -733,6 +752,7 @@ resource "aws_instance" "provider_instance" {
               EOF
   tags = {
     Name = "Provider-Instance"
+    "Patch Group" = "DEV"
   }
 
   depends_on = [ aws_nat_gateway.provider_nat ]
@@ -843,7 +863,7 @@ resource "aws_instance" "provider_bis_instance" {
   instance_type = "t3a.micro"
   subnet_id     = aws_subnet.provider_bis_subnet.id
   iam_instance_profile = aws_iam_instance_profile.ssm_instance_profile.name
-  security_groups = [aws_security_group.allow_http_icmp_bis.id]
+  vpc_security_group_ids = [aws_security_group.allow_http_icmp_bis.id]
     user_data     = <<-EOF
               #!/bin/bash
               yum update -y
@@ -904,6 +924,7 @@ resource "aws_instance" "provider_bis_instance" {
               EOF
   tags = {
     Name = "Provider-Bis-Instance"
+    "Patch Group" = "DEV"
   }
 
   depends_on = [ aws_nat_gateway.provider_bis_nat ]
