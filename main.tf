@@ -1027,11 +1027,11 @@ resource "aws_vpclattice_service_network_resource_association" "example" {
   }
 }
 
-resource "aws_vpc_endpoint" "SNI-VPC2-Res" {
+/*resource "aws_vpc_endpoint" "SNI-VPC2-Res" {
   vpc_id             = aws_vpc.client2.id
   resource_configuration_arn = aws_vpclattice_resource_configuration.example.arn
   vpc_endpoint_type  = "Resource"
   security_group_ids = [aws_security_group.allow_all.id]
   subnet_ids         = [aws_subnet.client2_subnet.id]
   private_dns_enabled = true
-}
+}*/

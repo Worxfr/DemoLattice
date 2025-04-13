@@ -26,6 +26,7 @@ output "NetworkServiceVPCE-tg"{
   value = aws_vpc_endpoint.SNI-VPC2-Tg
 }
 
+/*
 output "NetworkServiceVPCE-res"{
   value = aws_vpc_endpoint.SNI-VPC2-Res
-}
+}*/
