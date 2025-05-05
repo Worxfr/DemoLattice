@@ -3,15 +3,13 @@ provider "aws" {
   region = var.region
 }
 
-# Backend configuration for S3
+# Required providers configuration
 terraform {
   required_providers {
     aws = {
       source  = "hashicorp/aws"
       version = ">= 5.30"
     }
-  }
-  backend "s3" {
   }
 }
 

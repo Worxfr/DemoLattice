@@ -122,6 +122,34 @@ export class VpcLatticeStack extends cdk.Stack {
       ],
     });
 
+
+    // Create Client1 Instance
+const client1Instance = new ec2.Instance(this, 'Client1Instance', {
+  vpc: client1Vpc,
+  vpcSubnets: {
+    subnetType: ec2.SubnetType.PRIVATE_ISOLATED
+  },
+  instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3A, ec2.InstanceSize.MICRO),
+  machineImage: new ec2.AmazonLinuxImage({
+    generation: ec2.AmazonLinuxGeneration.AMAZON_LINUX_2
+  }),
+  role: ssmRole
+});
+
+// Create Client2Bis Instance 
+const client2BisInstance = new ec2.Instance(this, 'Client2BisInstance', {
+  vpc: client2BisVpc,
+  vpcSubnets: {
+    subnetType: ec2.SubnetType.PRIVATE_ISOLATED
+  },
+  instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3A, ec2.InstanceSize.MICRO),
+  machineImage: new ec2.AmazonLinuxImage({
+    generation: ec2.AmazonLinuxGeneration.AMAZON_LINUX_2
+  }),
+  role: ssmRole
+});    
+
+
     // Create Security Groups
     const providerSg = new ec2.SecurityGroup(this, 'ProviderSecurityGroup', {
       vpc: providerVpc,
@@ -383,6 +411,26 @@ PHPSCRIPT`)
 
     )
 
+    const client2Sg = new ec2.SecurityGroup(this, 'Client2SecurityGroup', {
+      vpc: client2Vpc,
+      allowAllOutbound: true,
+      description: 'Allow HTTP and ICMP inbound traffic'
+    });
+
+    // Create VPC Lattice Endpoint in Client2 VPC
+    const VpcLatticeEndpoint = new ec2.CfnVPCEndpoint(this, 'VpcLatticeEndpoint', {
+      vpcId: client2Vpc.vpcId,
+      serviceNetworkArn: serviceNetwork.attrArn,
+      vpcEndpointType: 'ServiceNetwork',
+      subnetIds: client2Vpc.selectSubnets({
+        subnetType: ec2.SubnetType.PRIVATE_ISOLATED
+      }).subnetIds,
+      securityGroupIds: [client2Sg.securityGroupId],
+      tags: [{
+        key: 'Name',
+        value: 'VPC-Lattice-Endpoint'
+      }]
+    })
     
     // Associate Client1 VPC with Service Network
     new vpclattice.CfnServiceNetworkVpcAssociation(this, 'Client1Association', {
