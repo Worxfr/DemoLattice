@@ -25,6 +25,10 @@
 
 This project demonstrates the implementation and usage of AWS VPC Lattice for service networking across multiple VPCs. It provides both Terraform and AWS CDK implementations to showcase different infrastructure-as-code approaches.
 
+## Architecture Diagram
+
+![DemoLattice Architecture](img/demolattice.drawio.png)
+
 ## Project Overview
 
 DemoLattice creates a multi-VPC architecture to demonstrate AWS VPC Lattice capabilities:

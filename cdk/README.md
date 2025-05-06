@@ -25,6 +25,10 @@
 
 This directory contains the AWS CDK implementation of the DemoLattice project, which demonstrates AWS VPC Lattice for service networking across multiple VPCs.
 
+## Architecture Diagram
+
+![DemoLattice Architecture](../img/demolattice.drawio.png)
+
 ## Architecture Overview
 
 The CDK code provisions the following resources:
