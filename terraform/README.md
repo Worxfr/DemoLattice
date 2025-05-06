@@ -29,6 +29,20 @@ This directory contains the Terraform implementation of the DemoLattice project,
 
 ![DemoLattice Architecture](../img/demolattice.drawio.png)
 
+## Test Scenario
+
+This project specifically tests the following scenarios:
+
+- **Overlapping CIDR Blocks**: Client1, Client2, and Provider VPCs intentionally use the same CIDR block (10.1.0.0/24) to demonstrate VPC Lattice's ability to handle overlapping IP address spaces.
+
+- **On-Premises Connectivity Simulation**: 
+  - Client2Bis VPC simulates an on-premises environment connected to Client2 VPC through VPC Peering.
+  - ProviderBis VPC simulates an on-premises service connected to Provider VPC through VPC Peering.
+
+- **Hybrid Service Access**: The Provider offers two services:
+  - A service running in AWS (Provider VPC)
+  - A service running in the simulated on-premises environment (ProviderBis VPC)
+
 ## Architecture Overview
 
 The Terraform code provisions the following resources:
@@ -36,13 +50,13 @@ The Terraform code provisions the following resources:
 - **VPCs**:
   - Client1 VPC (10.1.0.0/24)
   - Client2 VPC (10.1.0.0/24)
-  - Client2Bis VPC (10.101.0.0/24)
+  - Client2Bis VPC (10.101.0.0/24) - Simulates on-premises environment
   - Provider VPC (10.1.0.0/24)
-  - ProviderBis VPC (10.200.0.0/24)
+  - ProviderBis VPC (10.200.0.0/24) - Simulates on-premises service
 
 - **VPC Peering**:
-  - Provider to ProviderBis
-  - Client2 to Client2Bis
+  - Provider to ProviderBis (AWS to simulated on-premises service)
+  - Client2 to Client2Bis (AWS to simulated on-premises client)
 
 - **EC2 Instances**:
   - Client instances in each VPC
@@ -91,9 +105,9 @@ dynamodb_table = "terraform-locks"  # Optional, for state locking
 The CIDR blocks are:
 - Client1 VPC: 10.1.0.0/24
 - Client2 VPC: 10.1.0.0/24
-- Client2Bis VPC: 10.101.0.0/24
+- Client2Bis VPC: 10.101.0.0/24 (simulated on-premises)
 - Provider VPC: 10.1.0.0/24
-- ProviderBis VPC: 10.200.0.0/24
+- ProviderBis VPC: 10.200.0.0/24 (simulated on-premises)
 
 ## Deployment Instructions
 
@@ -129,20 +143,52 @@ terraform apply
 
 ## Testing the Setup
 
-After deployment:
+After deployment, you can test the VPC Lattice setup using different access methods:
 
-1. Connect to the client instances using AWS Systems Manager Session Manager
-2. Test connectivity to the VPC Lattice service:
+### From Client1 VPC
+
+Client1 VPC is directly associated with the Service Network, so you can access both services using the VPC Lattice service FQDN:
 
 ```bash
-# From a Client instance
+# Connect to Client1 instance using AWS Systems Manager Session Manager
+aws ssm start-session --target <client1-instance-id>
+
+# Access the AWS service
+curl http://service1.<generated-id>.vpc-lattice-svcs.<region>.amazonaws.com
+
+# Access the simulated on-premises service (via Resource Gateway)
 curl http://service1.<generated-id>.vpc-lattice-svcs.<region>.amazonaws.com
 ```
 
-The web server will display connection information including:
+### From Client2 VPC
+
+Client2 VPC uses a VPC Endpoint to connect to the Service Network, so you must access services through the Service Network Endpoint FQDN:
+
+```bash
+# Connect to Client2 instance using AWS Systems Manager Session Manager
+aws ssm start-session --target <client2-instance-id>
+
+# Access services through the Service Network Endpoint
+curl http://<service-network-endpoint-dns-name>
+```
+
+### From Client2Bis VPC (Simulated On-Premises)
+
+Client2Bis VPC is connected to Client2 VPC via VPC Peering, demonstrating how on-premises environments can access VPC Lattice services:
+
+```bash
+# Connect to Client2Bis instance using AWS Systems Manager Session Manager
+aws ssm start-session --target <client2bis-instance-id>
+
+# Access services through Client2's VPC Endpoint (via VPC Peering)
+curl http://<service-network-endpoint-dns-name>
+```
+
+The web servers will display connection information including:
 - Server IP
 - Client IP
 - VPC Lattice headers
+- Connection path information
 
 ## Troubleshooting
 

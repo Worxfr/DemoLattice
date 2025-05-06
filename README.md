@@ -38,6 +38,20 @@ DemoLattice creates a multi-VPC architecture to demonstrate AWS VPC Lattice capa
 - **Security Controls**: Implement access controls for service-to-service communication
 - **Observability**: Monitor service network traffic
 
+## Test Scenario
+
+This project specifically tests the following scenarios:
+
+- **Overlapping CIDR Blocks**: Client1, Client2, and Provider VPCs intentionally use the same CIDR block (10.1.0.0/24) to demonstrate VPC Lattice's ability to handle overlapping IP address spaces.
+
+- **On-Premises Connectivity Simulation**: 
+  - Client2Bis VPC simulates an on-premises environment connected to Client2 VPC through VPC Peering.
+  - ProviderBis VPC simulates an on-premises service connected to Provider VPC through VPC Peering.
+
+- **Hybrid Service Access**: The Provider offers two services:
+  - A service running in AWS (Provider VPC)
+  - A service running in the simulated on-premises environment (ProviderBis VPC)
+
 ## Architecture
 
 The project sets up the following infrastructure:
@@ -45,11 +59,11 @@ The project sets up the following infrastructure:
 - **Client VPCs**: 
   - Client1 VPC (10.1.0.0/24)
   - Client2 VPC (10.1.0.0/24)
-  - Client2Bis VPC (10.101.0.0/24)
+  - Client2Bis VPC (10.101.0.0/24) - Simulates on-premises environment
 
 - **Provider VPCs**:
   - Provider VPC (10.1.0.0/24)
-  - ProviderBis VPC (10.200.0.0/24)
+  - ProviderBis VPC (10.200.0.0/24) - Simulates on-premises service
 
 - **VPC Peering Connections**:
   - Between Provider and ProviderBis VPCs
@@ -99,17 +113,52 @@ cdk deploy
 
 ## Testing the Setup
 
-After deployment, you can test the VPC Lattice setup by:
+After deployment, you can test the VPC Lattice setup using different access methods:
 
-1. Connecting to the Client instances using AWS Systems Manager Session Manager
-2. Using curl to access the service via the VPC Lattice service endpoint
-3. Observing the connection information displayed by the web servers
+### From Client1 VPC
 
-Example:
+Client1 VPC is directly associated with the Service Network, so you can access both services using the VPC Lattice service FQDN:
+
 ```bash
-# From a Client instance
+# Connect to Client1 instance using AWS Systems Manager Session Manager
+aws ssm start-session --target <client1-instance-id>
+
+# Access the AWS service
+curl http://service1.<generated-id>.vpc-lattice-svcs.<region>.amazonaws.com
+
+# Access the simulated on-premises service (via Resource Gateway)
 curl http://service1.<generated-id>.vpc-lattice-svcs.<region>.amazonaws.com
 ```
+
+### From Client2 VPC
+
+Client2 VPC uses a VPC Endpoint to connect to the Service Network, so you must access services through the Service Network Endpoint FQDN:
+
+```bash
+# Connect to Client2 instance using AWS Systems Manager Session Manager
+aws ssm start-session --target <client2-instance-id>
+
+# Access services through the Service Network Endpoint
+curl http://<service-network-endpoint-dns-name>
+```
+
+### From Client2Bis VPC (Simulated On-Premises)
+
+Client2Bis VPC is connected to Client2 VPC via VPC Peering, demonstrating how on-premises environments can access VPC Lattice services:
+
+```bash
+# Connect to Client2Bis instance using AWS Systems Manager Session Manager
+aws ssm start-session --target <client2bis-instance-id>
+
+# Access services through Client2's VPC Endpoint (via VPC Peering)
+curl http://<service-network-endpoint-dns-name>
+```
+
+The web servers will display connection information including:
+- Server IP
+- Client IP
+- VPC Lattice headers
+- Connection path information
 
 ## Security Features
 
