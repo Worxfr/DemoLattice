@@ -1,4 +1,4 @@
-# DemoLattice - AWS CDK Implementation
+# DemoLattice - Terraform Implementation
 
 > [!WARNING]  
 > ## ⚠️ Important Disclaimer
@@ -23,11 +23,11 @@
 > The maintainers of this project are not responsible for any issues that may arise from the use of this code in production environments.
 ---
 
-This directory contains the AWS CDK implementation of the DemoLattice project, which demonstrates AWS VPC Lattice for service networking across multiple VPCs.
+This directory contains the Terraform implementation of the DemoLattice project, which demonstrates AWS VPC Lattice for service networking across multiple VPCs.
 
 ## Architecture Overview
 
-The CDK code provisions the following resources:
+The Terraform code provisions the following resources:
 
 - **VPCs**:
   - Client1 VPC (10.1.0.0/24)
@@ -41,8 +41,8 @@ The CDK code provisions the following resources:
   - Client2 to Client2Bis
 
 - **EC2 Instances**:
-  - Client instances in Client1 and Client2Bis VPCs
-  - Provider instances with web servers in Provider and ProviderBis VPCs
+  - Client instances in each VPC
+  - Provider instances with web servers
 
 - **VPC Lattice Components**:
   - Service Network
@@ -53,21 +53,34 @@ The CDK code provisions the following resources:
 ## Prerequisites
 
 - AWS Account with appropriate permissions
-- Node.js (v14.x or later)
-- AWS CDK CLI (`npm install -g aws-cdk`)
-- AWS CLI configured with appropriate credentials
+- AWS CLI installed and configured
+- Terraform v1.0.0 or newer
+- S3 bucket for Terraform state (optional, for remote state)
 
 ## Configuration
 
-### 1. Install Dependencies
+### 1. Variables Configuration
 
-First, install the required npm packages:
+Create or modify `terraform.tfvars` with your specific values:
 
-```bash
-npm install
+```hcl
+region             = "us-east-1"  # Change to your preferred region
+availability_zones = ["us-east-1a", "us-east-1b"]  # Change to AZs in your region
+name               = "demolattice"  # Project name prefix
 ```
 
-### 2. CIDR Block Configuration
+### 2. Backend Configuration (Optional)
+
+If you want to use S3 for remote state storage, update `config.s3.tfbackend`:
+
+```hcl
+bucket         = "your-terraform-state-bucket"
+key            = "demolattice/terraform.tfstate"
+region         = "us-east-1"
+dynamodb_table = "terraform-locks"  # Optional, for state locking
+```
+
+### 3. Network Configuration
 
 **Important Note**: The current configuration intentionally uses overlapping CIDR blocks (10.1.0.0/24) for Client1, Client2, and Provider VPCs. This is by design for this demo to showcase specific networking scenarios with VPC Lattice. **Do not modify these CIDR blocks** as it may break the intended demonstration.
 
@@ -78,72 +91,37 @@ The CIDR blocks are:
 - Provider VPC: 10.1.0.0/24
 - ProviderBis VPC: 10.200.0.0/24
 
-### 3. AWS Account and Region Configuration
-
-Configure the AWS account and region in `bin/vpc-lattice-cdk.ts`:
-
-```typescript
-// In bin/vpc-lattice-cdk.ts
-const app = new cdk.App();
-new VpcLatticeStack(app, 'VpcLatticeStack', {
-  env: { 
-    account: process.env.CDK_DEFAULT_ACCOUNT, 
-    region: process.env.CDK_DEFAULT_REGION 
-  }
-});
-```
-
-You can also hardcode your account and region if preferred:
-
-```typescript
-env: { 
-  account: '123456789012', 
-  region: 'us-east-1' 
-}
-```
-
-### 4. Instance Configuration
-
-Review and adjust the EC2 instance configurations in `lib/vpc-lattice-stack.ts` if needed:
-
-```typescript
-// Example: Change instance type
-instanceType: ec2.InstanceType.of(ec2.InstanceClass.T3A, ec2.InstanceSize.MICRO),
-```
-
 ## Deployment Instructions
 
-### 1. Build the TypeScript Code
+### Initialize Terraform
 
 ```bash
-npm run build
+terraform init
 ```
 
-### 2. Synthesize the CloudFormation Template (Optional)
+If using S3 backend:
 
 ```bash
-cdk synth
+terraform init -backend-config=config.s3.tfbackend
 ```
 
-This will generate the CloudFormation template without deploying it, allowing you to review the resources that will be created.
-
-### 3. Deploy the Stack
+### Plan the Deployment
 
 ```bash
-cdk deploy
+terraform plan -out=tfplan
 ```
 
-To deploy to a specific AWS account and region:
+### Apply the Configuration
 
 ```bash
-cdk deploy --profile [profile_name]
+terraform apply tfplan
 ```
 
-### 4. View Outputs
+Or directly:
 
-After deployment, CDK will output important information such as:
-- VPC IDs
-- Service DNS name
+```bash
+terraform apply
+```
 
 ## Testing the Setup
 
@@ -154,7 +132,7 @@ After deployment:
 
 ```bash
 # From a Client instance
-curl http://<Service1DnsName>
+curl http://service1.<generated-id>.vpc-lattice-svcs.<region>.amazonaws.com
 ```
 
 The web server will display connection information including:
@@ -169,11 +147,11 @@ The web server will display connection information including:
 1. **Deployment Failures**:
    - Check that your AWS credentials have sufficient permissions
    - Verify that the specified region supports all required services
-   - Look for errors in the CloudFormation events
 
-2. **TypeScript Compilation Errors**:
-   - Run `npm run build` to check for compilation errors
-   - Ensure all imports are correct
+2. **Connectivity Issues**:
+   - Ensure security groups allow necessary traffic
+   - Verify route tables have correct routes for VPC peering
+   - Check that VPC Lattice associations are properly configured
 
 3. **Resource Limits**:
    - You might hit service limits for VPCs, endpoints, or other resources
@@ -184,16 +162,18 @@ The web server will display connection information including:
 To avoid incurring charges, destroy all resources when done:
 
 ```bash
-cdk destroy
+terraform destroy
 ```
 
 ## File Structure
 
-- `bin/vpc-lattice-cdk.ts` - Entry point for the CDK app
-- `lib/vpc-lattice-stack.ts` - Main stack definition
-- `package.json` - Project dependencies and scripts
-- `tsconfig.json` - TypeScript configuration
-- `cdk.json` - CDK configuration
+- `main.tf` - Main infrastructure definition
+- `variables.tf` - Variable declarations
+- `terraform.tfvars` - Variable values
+- `provider_bis_nat.tf` - NAT gateway configuration for Provider VPCs
+- `network_changes.tf` - Additional network configurations
+- `.terraform.lock.hcl` - Terraform provider lock file
+- `config.s3.tfbackend` - Backend configuration
 
 ## Customization
 
